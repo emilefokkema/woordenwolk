@@ -1,0 +1,1137 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge;" />
+	<title>Woordenwolk2</title>
+<style>
+input[type="button"], input[type="text"], select{
+	background-color: #fff;
+	font-family: monospace;
+	font-size:larger;
+	padding: 3px;
+	margin: 3px;
+	border: 1pt solid #000;
+	border-radius: 3px;
+	width:100%;
+	height: 100%;
+	display:inline;
+}
+input[type="button"]:hover, select:hover{
+	background-color: #DDDDDD;
+}
+.word-appended {
+	position:absolute;
+	font-family: monospace;
+	color:initial;
+}
+</style>
+</head>
+<body></body>
+<script src="makeNode.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+<script id="woordenwolk2">
+(function(document, body){
+	var timedOutWhile=function(condition, whatToDo, whatToDoAfter, interval){
+		var step=function(){
+			condition(function(bool){
+				if(bool){
+					setTimeout(function(){whatToDo(step);}, interval?interval:50);
+				}else{
+					if(whatToDoAfter){whatToDoAfter();}
+				}
+			});
+		};
+		step();
+	};
+	var functionChain=function(fnArray,finalCallback){
+		if(fnArray.length==1){
+			return function(){fnArray[0](finalCallback)};
+		}else{
+			var f0=fnArray.splice(0,1)[0];
+			return function(){f0(functionChain(fnArray,finalCallback))};
+		}
+	};
+	var tellendeCallback=function(totHoeveel, eindCallback, wacht){
+		var n=0;
+		return function(){
+			n++;
+			if(n==totHoeveel){
+				if(wacht){
+					setTimeout(eindCallback, wacht);
+				}else{
+					eindCallback();
+				}
+			}
+		};
+	};
+	functionChain([
+			function(c){console.log("a");c();},
+			function(c){console.log("b");c();},
+			function(c){console.log("c");c();}
+		],function(){})();
+	var setKnopTekst;
+	if(!Array.prototype.indexOf){
+		Array.prototype.indexOf = function(obj, start) {
+		     for (var i = (start || 0), j = this.length; i < j; i++) {
+		         if (this[i] === obj) { return i; }
+		     }
+		     return -1;
+		}
+	}
+	body.style.backgroundColor="#fff";
+	body.style.overflow="hidden";
+	var rechthoekGroep=function(w_, h_){
+		var coinFlip=function(){return Math.random()*2>=1;};
+		var l=w_/2;
+		var t=h_/2;
+		var Kant=function(left, top, orientation, length, rechthoek_){
+			var linkerBuur,rechterBuur;
+			var setLinkerBuur=function(b){linkerBuur=b;};
+			var setRechterBuur=function(b){rechterBuur=b;};
+			var setLeftTopPlus=function(dleft_, dtop_){
+				left+=dleft_;
+				top+=dtop_;
+			};
+			var kijktNaar=function(r){
+				var linkerKant=r.kanten[(orientation+2)%4].rechterBuur();
+				return relatievePositie(linkerKant.left, linkerKant.top).y>0;
+			};
+			var afstandTotMidden=function(){
+				var p=echtePositie(length/2,0);
+				return Math.pow(Math.pow(p.left-l, 2)+(w_/h_)*Math.pow(p.top-t, 2), 2);
+			};
+			var snijdt=function(k){
+				if(orientation%2==k.orientation%2){return false;}
+				var p1=relatievePositie(k.left,k.top);
+				var p2=(function(lt){return relatievePositie(lt.left, lt.top);})(k.echtePositie(k.length, 0));
+				return (p1.x>0&&p1.x<length)&&(p1.y*p2.y<0);
+				
+			};
+			var snijdtRechthoek=function(r, tekenen){
+				for(var i=0;i<4;i++){
+					if(snijdt(r.kanten[i])){if(tekenen){r.kanten[i].teken();}return true;}
+				}
+				return false;
+			};
+			var heeftPlaatsVoor=function(r){
+				return ruimteBeschikbaar()>relatieveBreedte(r);
+			};
+			var heeftLinksPlaatsVoor=function(r){
+				return heeftPlaatsVoor(r)&&isLinksBegrensd()&&linkerBuur.heeftPlaatsVoor(r)&&!snijdtKant(maakRechthoekLinks(r));
+			};
+			var heeftRechtsPlaatsVoor=function(r){
+				return heeftPlaatsVoor(r)&&isRechtsBegrensd()&&rechterBuur.heeftPlaatsVoor(r)&&!snijdtKant(maakRechthoekRechts(r));
+			};
+			var heeftAllePlaatsVoor=function(r){
+				var width=relatieveBreedte(r);
+				var height=relatieveHoogte(r);
+				return !snijdtKant(maakRechthoek(-width,0,width,height))&&!snijdtKant(maakRechthoek(length,0,width,height));
+			};
+			var ruimteBeschikbaar=function(){
+				return length+((!isLinksBegrensd()||!isRechtsBegrensd())?Infinity:0)
+			};
+			var isLinksBegrensd=function(){return (orientation+1)%4==linkerBuur.orientation;};
+			var isRechtsBegrensd=function(){return (orientation+3)%4==rechterBuur.orientation};
+			var relatievePositie=function(left_, top_){
+				var dleft=left_-left;
+				var dtop=top_-top;
+				var x,y;
+				if(orientation==0){
+					x=dleft;y=-dtop;
+				}else if(orientation==1){
+					x=dtop;y=dleft;
+				}else if(orientation==2){
+					x=-dleft;y=dtop;
+				}else if(orientation==3){
+					x=-dtop;y=-dleft;
+				}
+				return {x:x,y:y};
+			};
+			var relatieveBreedte=function(r){
+				return r.kanten[orientation].length;
+			};
+			var relatieveHoogte=function(r){
+				return r.kanten[(orientation+1)%4].length;
+			}
+			var echtePositie=function(x,y){
+				var dleft,dtop;
+				if(orientation==0){
+					dleft=x;dtop=-y;
+				}else if(orientation==1){
+					dleft=y;dtop=x;
+				}else if(orientation==2){
+					dleft=-x;dtop=y;
+				}else if(orientation==3){
+					dleft=-y;dtop=-x;
+				}
+				return {left:left+dleft,top:top+dtop};
+			};
+			var maakRechthoek=function(x,y,width,height){
+				var linksOnder=echtePositie(x,y);
+				var rechtsBoven=echtePositie(x+width, y+height);
+				var left_=Math.min(linksOnder.left, rechtsBoven.left);
+				var top_=Math.min(linksOnder.top, rechtsBoven.top);
+				var width_=orientation%2==0?width:height;
+				var height_=orientation%2==0?height:width;
+				return Rechthoek(left_, top_, width_, height_);
+			};
+			var maakRechthoekLinks=function(r){
+				return maakRechthoek(0,0,relatieveBreedte(r), relatieveHoogte(r));
+			};
+			var maakRechthoekRechts=function(r){
+				return maakRechthoek(length-relatieveBreedte(r),0,relatieveBreedte(r),relatieveHoogte(r));
+			};
+			var maakKant=function(x,y,orientation_, length_){
+				var p=echtePositie(x,y);
+				return Kant(p.left, p.top, (orientation+orientation_)%4, length_);
+			};
+			var pakRechthoekMidden=function(r){
+				var width_=relatieveBreedte(r);
+				var height_=relatieveHoogte(r);
+				var x=-width_+length/10+Math.random()*(width_+length-length/5);
+				return maakRechthoek(x, 0, width_, height_);
+			};
+			var teken=function(color){maakRechthoek(0,0,length,2).teken(color?color:'#f00');}
+			return {
+				left:left,
+				maakRechthoekRechts:maakRechthoekRechts,
+				maakRechthoekLinks:maakRechthoekLinks,
+				snijdtRechthoek: snijdtRechthoek,
+				top:top,
+				orientation:orientation,
+				heeftAllePlaatsVoor:heeftAllePlaatsVoor,
+				length:length,
+				rechthoek:rechthoek_,
+				afstandTotMidden:afstandTotMidden,
+				kijktNaar:kijktNaar,
+				pakRechthoekMidden:pakRechthoekMidden,
+				setLinkerBuur:setLinkerBuur,
+				setRechterBuur:setRechterBuur,
+				linkerBuur:function(){return linkerBuur;},
+				rechterBuur: function(){return rechterBuur;},
+				relatieveBreedte:relatieveBreedte,
+				relatieveHoogte:relatieveHoogte,
+				heeftPlaatsVoor: heeftPlaatsVoor,
+				relatievePositie:relatievePositie,
+				echtePositie: echtePositie,
+				isLinksBegrensd:isLinksBegrensd,
+				isRechtsBegrensd:isRechtsBegrensd,
+				teken:teken,
+				maakKant:maakKant,
+				ruimteBeschikbaar:ruimteBeschikbaar,
+				heeftLinksPlaatsVoor:heeftLinksPlaatsVoor,
+				heeftRechtsPlaatsVoor:heeftRechtsPlaatsVoor,
+				maakRechthoek:maakRechthoek,
+				setLeftTopPlus:function(dl,dt){setLeftTopPlus(dl,dt);this.left+=dl;this.top+=dt;}
+			};
+		};
+		var Rechthoek=function(left, top, width, height){
+			var teken=function(color){
+				body.appendChild((function(){
+					var div=document.createElement('div');
+					div.setAttribute('style','position:absolute;left:'+left+'px;top:'+top+'px;width:'+width+'px;height:'+height+'px;background-color:'+(color?color:(function(v1,v2,v3){return 'rgb('+(100+v1)+','+(100+v2)+','+(100+v3)+')';})(Math.floor(Math.random()*100),Math.floor(Math.random()*100),Math.floor(Math.random()*100))));
+					return div;
+				})());
+			};
+			var setLeftTopPlus=function(dl,dt){
+				left+=dl;
+				top+=dt;
+			};
+			var r={
+				left:left,
+				top:top,
+				width:width,
+				height:height,
+				teken:teken,
+				setLeftTopPlus:function(dl, dt){
+					setLeftTopPlus(dl, dt);
+					this.left=left;
+					this.top=top;
+					zetKanten();
+				}
+			};
+			var zetKanten=function(){
+				var bovenKant=Kant(left, top, 0, width, r);
+				var rechterKant=Kant(left+width, top, 1, height, r);
+				var onderKant=Kant(left+width, top+height, 2, width, r);
+				var linkerKant=Kant(left, top+height, 3, height, r);
+				bovenKant.setLinkerBuur(linkerKant);
+				bovenKant.setRechterBuur(rechterKant);
+				rechterKant.setLinkerBuur(bovenKant);
+				rechterKant.setRechterBuur(onderKant);
+				onderKant.setLinkerBuur(rechterKant);
+				onderKant.setRechterBuur(linkerKant);
+				linkerKant.setLinkerBuur(onderKant);
+				linkerKant.setRechterBuur(bovenKant);
+				r.kanten=[bovenKant, rechterKant, onderKant, linkerKant];
+			};
+			zetKanten();
+			return r;
+		};
+		var Hoek=function(kantL, kantR){
+			var zetRechthoek=function(r){
+				var steektLinksUit=r.kanten[kantL.orientation].length-kantL.length;
+				var steektRechtsUit=r.kanten[kantR.orientation].length-kantR.length;
+				var linksNieuw=vervangKant(kantL, 2, [kantL.maakKant(0,0,3,kantR.length),kantL.maakKant(0,kantR.length, 0, kantL.length)]);
+				var nieuw;
+				if(steektLinksUit<0&&steektRechtsUit<0){
+					nieuw=trekKantTerug(linksNieuw, -steektLinksUit);
+					trekKantTerug(nieuw.rechterBuur().rechterBuur(), -steektRechtsUit);
+				}else if(steektLinksUit>0&&steektRechtsUit<0){
+					nieuw=duwKantVooruit(linksNieuw, steektLinksUit)[2];
+					nieuw=versmeltKant(nieuw);
+					trekKantTerug(nieuw, -steektRechtsUit);
+				}else if(steektLinksUit<0&&steektRechtsUit>0){
+					nieuw=duwKantVooruit(linksNieuw.rechterBuur(), steektRechtsUit)[0].linkerBuur();
+					nieuw=versmeltKant(nieuw);
+					trekKantTerug(nieuw, -steektLinksUit);
+				}else if(steektLinksUit==0){
+					if(steektRechtsUit>0){
+						duwKantVooruit(linksNieuw.rechterBuur(), steektRechtsUit);
+					}else if(steektRechtsUit<0){
+						trekKantTerug(linksNieuw.rechterBuur(), -steektRechtsUit);
+					}
+				}else if(steektRechtsUit==0){
+					if(steektLinksUit>0){
+						duwKantVooruit(linksNieuw, steektLinksUit);
+					}else if(steektLinksUit<0){
+						trekKantTerug(linksNieuw, -steektLinksUit)
+					}
+				}else if(steektLinksUit>0&&steektRechtsUit>0){
+					nieuw=duwKantVooruit(linksNieuw, steektLinksUit)[2];
+					nieuw=versmeltKant(nieuw);
+					duwKantVooruit(nieuw, steektRechtsUit);
+				}
+			};
+			return {zetRechthoek:zetRechthoek};
+		};
+		var rechthoeken=[];
+		var kant0;
+
+		var zetRechthoekAanKantRandom=function(kant_, r){
+			var r1=kant_.pakRechthoekMidden(r);
+			var onderKant=r1.kanten[(kant_.orientation+2)%4];
+			var steektRechtsUit=kant_.relatievePositie(onderKant.left, onderKant.top).x-kant_.length;
+			var steektLinksUit=-kant_.relatievePositie(onderKant.rechterBuur().left, onderKant.rechterBuur().top).x;
+			var steektVooruit=r1.kanten[(kant_.orientation+1)%4].length;
+			var ks=duwKantVooruit(kant_, steektVooruit);
+			if(steektLinksUit>0){duwKantVooruit(ks[0], steektLinksUit);}
+			if(steektLinksUit<0){trekKantTerug(ks[0], -steektLinksUit);}
+			if(steektRechtsUit>0){duwKantVooruit(ks[2], steektRechtsUit);}
+			if(steektRechtsUit<0){trekKantTerug(ks[2], -steektRechtsUit);}
+			return r1;
+		};
+		var zetRechthoekAanKantLinks=function(kant_, r){
+			r=kant_.maakRechthoekLinks(r);
+			Hoek(kant_.linkerBuur(),kant_).zetRechthoek(r);
+			return r;
+		};
+		var zetRechthoekAanKantRechts=function(kant_, r){
+			r=kant_.maakRechthoekRechts(r);
+			Hoek(kant_,kant_.rechterBuur()).zetRechthoek(r);
+			return r;
+		};
+		var eersteKantWaarvoor=function(voorwaarde){
+			for(var k=kant0,b=true;(k!=kant0)||b;k=k.rechterBuur(),b=false){
+				if(voorwaarde(k)){return k;}
+			}
+			return null;
+		};
+		var kantenWaarvoor=function(voorwaarde){
+			var gevonden=[];
+			for(var k=kant0,b=true;(k!=kant0)||b;k=k.rechterBuur(),b=false){
+				if(voorwaarde(k)){gevonden.push(k);}
+			}
+			return gevonden;
+		};
+		var kantWaarvoor=function(voorwaarde){
+			var gevonden=kantenWaarvoor(voorwaarde);
+			return gevonden[Math.floor(Math.random()*gevonden.length)];
+		};
+		var tekenKanten=function(){
+			kantWaarvoor(function(k){k.teken();});
+		};
+		var tekenRechthoeken=function(){
+			for(var i=0;i<rechthoeken.length;i++){
+				rechthoeken[i].teken();
+			}
+		};
+		var telKanten=function(){
+			var n=0;
+			kantWaarvoor(function(k){n++;});
+			console.log("kanten: "+n);
+		};
+		var vervangKant=function(kant, hoeveelWeg, erbij){
+			if(hoeveelWeg>=1){
+				var volgendeNiet=kant;
+				for(var i=0;i<hoeveelWeg;i++){
+					volgendeNiet=volgendeNiet.rechterBuur();
+				}
+				for(var i=0;i<erbij.length-1;i++){
+					erbij[i].setRechterBuur(erbij[i+1]);
+					erbij[i+1].setLinkerBuur(erbij[i]);
+				}
+				erbij[erbij.length-1].setRechterBuur(volgendeNiet);
+				volgendeNiet.setLinkerBuur(erbij[erbij.length-1]);
+				erbij[0].setLinkerBuur(kant.linkerBuur());
+				kant.linkerBuur().setRechterBuur(erbij[0]);
+				kant0=erbij[0];
+				return erbij[0];
+			}
+		};
+		var versmeltKanten=function(){
+			var welke=kantenWaarvoor(function(k){return (k.orientation!=k.linkerBuur().orientation)&&(k.orientation==k.rechterBuur().orientation);});
+			var k;
+			for(var i=0;i<welke.length;i++){
+				k=welke[i];
+				while(k.rechterBuur().orientation==k.orientation){
+					k=versmeltKant(k);
+				}
+			}
+		};
+		var versmeltKant=function(kant){
+			return vervangKant(kant,2,[kant.maakKant(0,0,0,kant.length+kant.rechterBuur().length)]);
+		};
+		var splitsKantOp=function(kant, lengthPart){
+			var k1=kant.maakKant(0,0,0,lengthPart);
+			var k2=kant.maakKant(lengthPart, 0, 0, kant.length-lengthPart);
+			var k=[k1,k2];
+			vervangKant(kant, 1, k);
+			return k;
+		};
+		var duwKantVooruit=function(kant, hoeVer){
+			var k1=kant.maakKant(0,0,3,hoeVer);
+			var k2=kant.maakKant(0,hoeVer,0,kant.length);
+			var k3=kant.maakKant(kant.length, hoeVer, 1, hoeVer);
+			var k=[k1,k2,k3];
+			vervangKant(kant, 1, k);
+			//==> BELANGRIJK TODO: hier ook onderscheid 'achteruit' zoals hieronder
+			return k;
+		};
+		var trekKantTerug=function(kant, hoeVer){
+			var linksAchteruit=kant.linkerBuur().orientation==(kant.orientation+3)%4;
+			var rechtsAchteruit=kant.rechterBuur().orientation==(kant.orientation+1)%4;
+			if(linksAchteruit){
+				var k1=splitsKantOp(kant.linkerBuur(), kant.linkerBuur().length-hoeVer)[1];
+				var k2=kant.maakKant(0, -hoeVer, 0, kant.length);
+				var k3=kant.maakKant(kant.length, -hoeVer, 3, hoeVer);
+				return vervangKant(k1, 2, [k2, k3]);
+			}else if(rechtsAchteruit){
+				var k1=splitsKantOp(kant.rechterBuur(), hoeVer)[0];
+				var k2=kant.maakKant(0,-hoeVer, 0, kant.length);
+				var k3=kant.maakKant(0,0,1, hoeVer);
+				return vervangKant(kant, 2, [k3,k2]);
+			}else{
+
+			}
+		};
+		var centreer=function(){
+			var minl,maxl,mint,maxt
+			kantenWaarvoor(function(k){
+				if(minl===undefined){minl=k.left;}else{minl=Math.min(minl, k.left);}
+				if(maxl===undefined){maxl=k.left;}else{maxl=Math.max(maxl, k.left);}
+				if(mint===undefined){mint=k.top;}else{mint=Math.min(mint, k.top);}
+				if(maxt===undefined){maxt=k.top;}else{maxt=Math.max(maxt, k.top);}
+			});
+			var dt=h_/2-maxt/2-mint/2;
+			var dl=w_/2-maxl/2-minl/2;
+			for(var i=0;i<rechthoeken.length;i++){
+				rechthoeken[i].setLeftTopPlus(dl, dt);
+			}
+			kantenWaarvoor(function(k){
+				k.setLeftTopPlus(dl, dt);
+			});
+		};
+		var metMinste=function(arr, waardeFunctie){
+			var w1,w,keuze;
+			for(var i=0;i<arr.length;i++){
+				if(w===undefined){
+					w=waardeFunctie(arr[i]);
+					keuze=arr[i];
+				}else{
+					if((w1=waardeFunctie(arr[i]))<=w){
+						w=w1;
+						keuze=arr[i];
+					}
+				}
+			}
+			return keuze;
+		};
+		var snijdtKant=function(r, tekenen){
+			var kant;
+			if(kant=eersteKantWaarvoor(function(k){return k.snijdtRechthoek(r)})){if(tekenen){console.log(kant);kant.teken();kant.snijdtRechthoek(r, true);};return true;}
+			return false;
+		};
+		var kiesKantVoor=function(r){
+			var optiesL=kantenWaarvoor(function(k){return k.kijktNaar(r)&&k.heeftLinksPlaatsVoor(r);});
+			var optieL=metMinste(optiesL, function(o){return o.afstandTotMidden();});
+
+			var optiesR=kantenWaarvoor(function(k){return k.kijktNaar(r)&&k.heeftRechtsPlaatsVoor(r);});
+			var optieR=metMinste(optiesR, function(o){return o.afstandTotMidden();});
+
+			if(optieL&&!optieR){return zetRechthoekAanKantLinks(optieL, r);}
+			if(optieR&&!optieL){return zetRechthoekAanKantRechts(optieR, r);}
+			if(optieR&&optieL){
+				if(Math.random()*2>=1){
+					return zetRechthoekAanKantLinks(optieL, r);
+				}else{
+					return zetRechthoekAanKantRechts(optieR, r);
+				}
+			}
+			
+			optie=kantWaarvoor(function(k){return !(k.isLinksBegrensd()||k.isRechtsBegrensd())&&k.heeftAllePlaatsVoor(r);});
+			if(optie){return zetRechthoekAanKantRandom(optie, r);}
+			
+			return null;
+		};
+		var voegToe=function(width, height){
+			var left, top, r, r0, kant_;
+			if(rechthoeken.length==0){
+				left=l-width/2;
+				top=t-height/2;
+				r=Rechthoek(left, top, width, height);
+				rechthoeken.push(r);
+				kant0=r.kanten[0];
+				return r;
+			}else{
+				r=(function(){
+					var r=body.clientWidth+body.clientHeight;
+					var a=Math.random()*2*Math.PI;
+					left=l+r*Math.cos(a);
+					top=t+r*Math.sin(a);
+					return Rechthoek(left, top, width, height);
+				})();
+				r=kiesKantVoor(r);
+				//r=kant_?zetRechthoekAanKant(kant_, r):null;
+				if(r){rechthoeken.push(r);}
+				versmeltKanten();
+				centreer();
+				return r;
+			}
+		};
+		return {
+			voegToe:function(w,h){var r=voegToe(w,h);return r;},
+			tekenKanten:tekenKanten,
+			tekenRechthoeken:tekenRechthoeken
+		};
+	};
+	var initialFontSize=12;
+	var Woord=function(s, context, original){
+		context=[[context[0],original,context[1]]];
+		s=s.toLowerCase();
+		var doel;
+		var middle;
+		var setDoel=function(d){doel=d;}
+		var fontSize=initialFontSize;
+		var node=document.createElement('span');
+		node.appendChild(document.createTextNode(s));
+		var $node=$(node);
+		var left,top,width,height;
+		var appendToBody=function(left_,top_){
+			left=left_;
+			top=top_;
+			$node.addClass('word-appended');
+			//node.setAttribute('style','position:absolute;left:'+left_+'px;top:'+top_+'px;font-family:monospace;color:initial;font-size:'+initialFontSize+'px;transition-property:font-size,left,top;transition-duration:0.2s');
+			$node.css({left: left, top: top, fontSize: initialFontSize,"transition-property":"font-size, left, top", "transition-duration":"0.6s"});
+			
+			body.appendChild(node);
+			middle={left:left_,top:top_};
+		};
+		var underline=function(bool){
+			node.style.textDecoration=bool?"underline":"";
+		};
+		var contextDisplay=(function(){
+			var parts=[];
+			var showing=false;
+			var show=function(){
+				if(showing){return;}
+				showing=true;
+				parts=[];
+				underline(true);
+				var contextPart=function(parent, text, wordNode, left, angle){
+					var node=document.createElement('span');
+					node.onclick=function(){contextDisplay.hide();};
+					node.setAttribute('style','position:absolute;background-color:#fff;font-family:monospace;border-bottom:1pt solid #000');
+					node.appendChild(document.createTextNode(text));
+					parent.appendChild(node);
+					node.style.left=left?((wordNode.offsetLeft-node.offsetWidth)+'px'):((wordNode.offsetLeft+wordNode.offsetWidth)+'px');
+					node.style.top=(wordNode.offsetTop+((wordNode.offsetHeight-node.offsetHeight)/2))+'px';
+					var $node=$(node);
+					$node.css({"transition-property":"transform","transition-duration":"0.2s"});
+					$node.css({"transform-origin":left?((node.offsetWidth+wordNode.offsetWidth/2)+'px 50%'):((-wordNode.offsetWidth/2)+'px 50%'), "transform":'rotate('+angle+'deg)'});
+					return node;
+				};
+				for(var i=0;i<context.length;i++){
+					parts.push(contextPart(body, context[i][0], node, true, 90-i*(180/context.length)));
+					parts.push(contextPart(body, context[i][2], node, false, 90-i*(180/context.length)));
+				}
+			};
+			var hide=function(){
+				if(!showing){return;}
+				showing=false;
+				underline(false);
+				for(var i=0;i<parts.length;i++){
+					body.removeChild(parts[i]);
+				}
+				parts=[];
+			};
+			return {show:show,hide:hide};
+		})();
+		var groei=(function(){
+			var snelheid=1;
+			return function(callback){
+				fontSize+=snelheid;
+				left-=snelheid/2;
+				top-=snelheid/2;
+
+				// node.style.left=left+"px";
+				// node.style.top=top+"px";
+				// node.style.fontSize=fontSize+"px";
+				if(callback){$node.one("webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend",callback);}
+				$node.css({left:left,top:top,fontSize:fontSize});
+				snelheid+=0.1;
+			};
+		})();
+		var moveTo=function(l,t){
+			left=l;
+			top=t;
+			$node.css({left:l,top:t});
+		};
+		var gaNaarDoel=function(){
+			moveTo(doel.left,doel.top);
+		};
+		var verberg=function(waarheen, callback){
+			var t=$(window).height()+100;
+			var l=left;
+			if(top>t&&!waarheen){
+				try{
+					body.removeChild(node);
+				}catch(e){
+
+				}
+				if(callback){callback();}
+			}else{
+				$node.on("webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend",function(){
+					try{
+						body.removeChild(node);
+					}catch(e){
+
+					}
+					if(callback){callback();}
+				});
+				if(waarheen){t=waarheen.top;l=waarheen.left;}
+				setTimeout(function(){
+					moveTo(l,t);
+				},Math.floor(Math.random()*500))
+			}
+		};
+		return {
+			addContext:function(c){context.push(c);},
+			context:function(){return context;},
+			node:node,
+			$node:function(){return $node;},
+			appendToBody:appendToBody,
+			string:s,
+			groei:groei,
+			verberg:verberg,
+			left:function(){return left;},
+			top:function(){return top;},
+			middle: function(){return middle;},
+			width:function(){return $node.width();},
+			height:function(){return $node.height();},
+			size:function(){return fontSize;},
+			setDoel:setDoel,
+			doel:function(){return doel;},
+			gaNaarDoel:gaNaarDoel,
+			showContext:contextDisplay.show,
+			offset: function(){return $node.offset();},
+			hideContext:contextDisplay.hide,
+			setOnClick:function(handler){$node.on('click',handler);}
+		};
+	};
+	var woordGroep=function(woord){
+		var r,w=[];
+		var rondWoord;
+		var grootte=0;
+		var string=woord.string;
+		var voegToe=function(woord){
+			woord.groep=function(){return r;};
+			w.push(woord);
+			grootte++;
+		};
+		voegToe(woord);
+		var verberg=function(callback){
+			for(var i=0;i<w.length;i++){
+				w[i].verberg(null, callback);
+			}
+		};
+		var groepeer=function(callback){
+			rondWoord=w.splice(Math.floor(Math.random()*w.length),1)[0];
+			var callback0, woord0;
+			var go=function(){
+				woord0=w.splice(Math.floor(Math.random()*w.length), 1)[0];
+				callback0=tellendeCallback(2, callback);
+				rondWoord.addContext(woord0.context()[0]);
+				woord0.verberg(rondWoord.middle(), callback0);
+				rondWoord.groei(callback0);
+				//if(callback){callback();}
+				if(w.length>0){setTimeout(go, 50);}
+			};
+			go();
+		};
+		r={voegToe:voegToe,string:string,length:function(){return grootte;}, verberg:verberg, groepeer:groepeer,rondWoord:function(){return rondWoord;}};
+		return r;
+	};
+	var woordRexExp="[^\\s\\n]+";
+	var nietWoordOfNewlineRexExp="[\\s]+";
+	var update=makeNode('<div id="1" align="center" style="z-index:1000;position:absolute;left:0px;top:0px;width:100%;height:100%;background-color:rgba(255,255,255,0.5)"><span id="2" style="color:#000;position:relative;top:50%"><input id="3" type="text" style="width:300px;height:30px"/></span></div>',
+		function(div, span, input){
+			var displaying=false;
+			var $span=$(span);
+			$span.css({'transform':'translateY(-50%)'});
+			return function(text){
+				if(text){
+					if(!displaying){body.appendChild(div);}
+					//span.innerHTML=text;
+					input.value=text;
+					displaying=true;
+				}else{
+					if(displaying){body.removeChild(div);}
+					displaying=false;
+				}
+			}
+		})
+	var Uitsluiten=(function(){
+		var regesc=function(s){return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');};
+		var addAliases=(function(aliasCollections){
+			var othersBelongingTo=function(affix){
+				var aliasCollection;
+				for(var i=0;i<aliasCollections.length;i++){
+					if(affix.indexOf(aliasCollections[i].one)!=-1){
+						aliasCollection=aliasCollections[i]
+						break;
+					}
+				}
+				var r=[];
+				if(aliasCollection){
+					for(var i=0;i<aliasCollection.others.length;i++){
+						r.push(affix.replace(new RegExp(regesc(aliasCollection.one),"g"),aliasCollection.others[i]));
+					}
+				}
+				return r;
+			};
+			return function(arr){
+				var r=[];
+				for(var i=0;i<arr.length;i++){
+					r=r.concat(arr[i]);
+					var others=othersBelongingTo(arr[i]);
+					if(others){
+						r=r.concat(others);
+					}
+				}
+				return r;
+			};
+		})([
+			{one:"'", others: ["\u02bc", "\u2019"]},
+			{one: "-",others:["\u2013","\u2014"]},
+			{one: "\"",others:["\u201d","\u201c","\u00ab","\u00bb"]},
+			{one: "à",others:["\u00e0"]}
+		]);
+		var uitsluiting=function(wat){
+			if(wat.prefixen){wat.prefixen=addAliases(wat.prefixen);}
+			if(wat.suffixen){wat.suffixen=addAliases(wat.suffixen);}
+			wat.woorden=addAliases(wat.woorden);
+			var woorden=function(){return wat.woorden;};
+			var prefixen=function(){return wat.prefixen;}
+			var suffixen=function(){return wat.suffixen;};
+			var verwijderAffixen=function(){
+				var affixRegexen=(function(arr1, arr2){
+					var arr=arr1?(arr2?arr1.concat(arr2):arr1):(arr2?arr2:[]);
+					var r=[];
+					for(var i=0;i<arr.length;i++){r.push(new RegExp(regesc(arr[i]), "g"));};
+					return r;
+				})(wat.prefixen, wat.suffixen);
+				return function(s){
+					for(var i=0;i<affixRegexen.length;i++){
+						s=s.replace(affixRegexen[i],"");
+					}
+					return s;
+				};
+			};
+			return {woorden:woorden,prefixen:prefixen,suffixen:suffixen,verwijderAffixen:verwijderAffixen,doeIetsTekst:wat.doeIetsTekst,shuffleTekst:wat.shuffleTekst,lezenString:wat.lezenString,woordenMakenString:wat.woordenMakenString,aanBodyString:wat.aanBodyString};
+		};
+		var u={
+			"NL": uitsluiting({
+				woorden:["van", "een", "de", "dat", "in", "op", "of", "en", "te", "is", "het"],
+				doeIetsTekst: "Doe iets!",
+				shuffleTekst: "Herschik ze!",
+				lezenString: "Inlezen",
+				woordenMakenString: "Opschonen",
+				aanBodyString: "Klaarzetten"
+			}),
+			"EN": uitsluiting({
+				woorden:["of","a","an","in", "the","and","that","to", "it","by","for","from","had","at","been","about","or"],
+				suffixen: ["'s","'d"],
+				doeIetsTekst: "Do something!",
+				shuffleTekst: "Shuffle them!",
+				lezenString: "Reading",
+				woordenMakenString: "Cleaning",
+				aanBodyString: "Attaching"
+			}),
+			"FR": uitsluiting({
+				woorden:["du","au","de","la","le","les", "se","est", "des","en","dont","y","à","a", "et","un","une", "ou", "que", "ce", "par", "on", "qui", "sur", "il"],
+				prefixen: ["l'", "d'", "c'", "n'", "s'"],
+				doeIetsTekst: "Fais quelque chose!",
+				shuffleTekst: "Brouillez-les!",
+				lezenString: "Lecture",
+				woordenMakenString: "Nettoyage",
+				aanBodyString: "Arrangement"
+			}),
+			"DE": uitsluiting({
+				woorden:["der","die","das","des","den","dem", "denen","deren","dessen","und", "so", "weil","denn", "wie", "ein","eine", "einem", "einen", "einer","eines", "vom", "von", "für", "an","im","bei", "mit", "aber", "nicht", "zu", "sich", "es", "er", "sie", "daß"],
+				doeIetsTekst: "Mach etwas!",
+				shuffleTekst: "Durcheinander!",
+				lezenString: "Lesen",
+				woordenMakenString: "Sauber machen",
+				aanBodyString: "Hinstellen"
+			}),
+			"LA": uitsluiting({
+				woorden:["ac","non","sed"],
+				doeIetsTekst: "Fac aliquod!",
+				shuffleTekst: "Misce!",
+				lezenString: "Legere",
+				woordenMakenString: "Abluere",
+				aanBodyString: "Apponere"
+			})
+		};
+		var labels=function(){
+			var l=[];
+			for(var i in u){
+				if(u.hasOwnProperty(i)){
+					l.push(i);
+				}
+			}
+			return (function(o){for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);return o;})(l);
+		};
+		var verwijderLeestekens=(function(leestekens){
+			for(var i=0;i<leestekens.length;i++){leestekens[i]=regesc(leestekens[i]);}
+			var reg=new RegExp("["+leestekens.join('')+"]","g");
+			return function(s){return s.replace(reg,"");};
+		})(addAliases([",",".","-","\"",":",";"]));
+		var f=function(option){return u[option];};
+		f.labels=labels;
+		f.verwijderLeestekens=verwijderLeestekens;
+		return f;
+	})();
+	var invoerReplica=(function(parent){
+		var node=document.createElement('div');
+		node.setAttribute('style','z-index:500;position:absolute;left:0px;top:0px;width:100%;height:100%;background-color:white;font-family:monospace;font-size:'+initialFontSize+'px;color:initial;padding:2px;box-sizing:border-box;-webkit-appearance:textarea;white-space: pre-wrap;word-wrap: break-word;');
+		var repliceer2=function(tekst, option, callback){
+			node.innerHTML="";
+			var verwijderAffixen=Uitsluiten(option).verwijderAffixen();
+			var verwijderLeestekens=Uitsluiten.verwijderLeestekens;
+			var nietWoorden=Uitsluiten(option).woorden();
+			var isWoord=(function(wrg){
+				return function(s){
+
+					return s.match(wrg)&&(nietWoorden.indexOf(s)==-1);
+				};
+			})(new RegExp(woordRexExp,"g"));
+			var delen;
+			(function(string, reg, callback0){
+				var match,index1,index2,index3,index4;
+				var l=string.length;
+				var lezenString=Uitsluiten(option).lezenString;
+				match=reg.exec(string);
+				var r=[];
+				var w=40;
+				var limit=function(index, min, max){return Math.min(Math.max(index,min),max);};
+				var condition=function(){return match!=null;};
+				var after=function(){
+					console.log("klaar met matchen");
+					//update();
+					callback0(r);
+				};
+				timedOutWhile(
+					function(r){
+						r(condition());
+					},
+					function(callback1){
+						var teller=0;
+						while(condition()&&teller<100){
+							index1=limit(match.index-w, 0, match.index);
+							index2=match.index;
+							index3=match.index+match[0].length;
+							index4=limit(match.index+match[0].length+w, match.index+match[0].length, string.length);
+							r.push({
+								match:match[0],
+								surrounding:[string.substr(index1,index2-index1),string.substr(index3,index4-index3)],
+								indices:[index1,index2,index3,index4]	
+							});
+							teller++;
+							match=reg.exec(string);
+						}
+						update(lezenString+": "+Math.floor(100*index2/l)+"%");
+						if(condition()){
+							callback1();
+						}else{
+							after();
+						}
+					},
+					after,
+					20
+				);
+			})(tekst, new RegExp(woordRexExp+"|"+nietWoordOfNewlineRexExp+"|"+"\\n", "g"),
+			function(r){
+				delen=r;
+				var mogelijkWoord, match, woord,woorden=[];
+				var woordenMakenString=Uitsluiten(option).woordenMakenString;
+				var i=0;
+				var condition=function(){return i<delen.length;};
+				var after=function(){
+					console.log("klaar met woorden maken");
+					callback(woorden);
+				};
+				timedOutWhile(
+					function(r){
+						r(condition());
+					},
+					function(callback1){
+						var teller=0;
+						while(condition()&&teller<100){
+							match=delen[i].match;
+							mogelijkWoord=verwijderAffixen(verwijderLeestekens(match.toLowerCase()));
+							if(isWoord(mogelijkWoord)){
+								woord=Woord(mogelijkWoord, delen[i].surrounding, delen[i].match);
+								node.appendChild(woord.node);
+								woorden.push(woord);
+							}
+							else if(!isWoord(mogelijkWoord)&&!match.match(/\n/g)){
+								node.appendChild((function(){
+									var node=document.createElement('span');
+									node.appendChild(document.createTextNode(match));
+									return node;
+								})());
+							}else if(match.match(/\n/g)){
+								node.appendChild(document.createElement('br'));
+							}
+							i++;
+							teller++;
+						}
+						update(woordenMakenString+": "+Math.floor(100*i/delen.length)+"%");
+						if(condition()){
+							callback1();
+						}else{
+							after();
+						}
+					},
+					after,
+					20
+					);
+				// for(var i=0;i<delen.length;i++){
+				// 	match=delen[i].match;
+				// 	mogelijkWoord=verwijderAffixen(verwijderLeestekens(match.toLowerCase()));
+				// 	if(isWoord(mogelijkWoord)){
+				// 		woord=Woord(mogelijkWoord, delen[i].surrounding, delen[i].match);
+				// 		node.appendChild(woord.node);
+				// 		woorden.push(woord);
+				// 	}
+				// 	else if(!isWoord(mogelijkWoord)&&!match.match(/\n/g)){
+				// 		node.appendChild((function(){
+				// 			var node=document.createElement('span');
+				// 			node.appendChild(document.createTextNode(match));
+				// 			return node;
+				// 		})());
+				// 	}else if(match.match(/\n/g)){
+				// 		node.appendChild(document.createElement('br'));
+				// 	}
+				// }
+				
+			});
+
+			
+		};
+		var verberg=function(){
+			//node.style.display="none";
+			parent.removeChild(node);
+		};
+		parent.appendChild(node);
+		return {verberg:verberg,repliceer2:repliceer2};
+	})(body);
+	var invoer=(function(parent){
+		var node=document.createElement('textarea');
+		node.setAttribute('style', 'z-index:750;position:absolute;left:0px;top:0px;width:100%;height:100%;resize:none;border:none;font-size:'+initialFontSize+'px');
+		parent.appendChild(node);
+		var value=function(){return node.value;};
+		var verberg=function(){
+			//node.style.display="none";
+			parent.removeChild(node);
+		};
+		var setValue=function(t){node.value=t;};
+		return {value:value,verberg:verberg,setValue:setValue};
+	})(body);
+	var doeIets2=function(option){
+		var woorden,nieuw,g=[];
+		functionChain([
+			function(callback){
+				invoerReplica.repliceer2(invoer.value(), option, function(r){
+					woorden=r;
+					//update();
+					(function(offsets){
+						var i=0;
+						var aanBodyString=Uitsluiten(option).aanBodyString;
+						var condition=function(){return i<woorden.length};
+						var after=function(){
+							update();
+							invoer.verberg();
+							invoerReplica.verberg();
+							callback();
+						};
+						update(aanBodyString+": 0%");
+						timedOutWhile(
+							function(r){r(condition());},
+							function(callback1){
+								var teller=0;
+								while(condition()&&teller<400){
+									woorden[i].appendToBody(offsets[i].left,offsets[i].top);
+									i++;
+									teller++;
+								}
+								update(aanBodyString+": "+Math.floor(100*i/woorden.length)+"%");
+								if(condition()){
+									callback1();
+								}else{
+									after();
+								}
+							},
+							after,
+							40
+							);
+						// for(var i=0;i<woorden.length;i++){
+						// 	woorden[i].appendToBody(offsets[i].left,offsets[i].top);
+						// }
+					})(woorden.map(function(w){return w.offset();}));
+				});
+			},
+			function(callback){
+				for(var i=0;i<woorden.length;i++){
+					nieuw=true;
+					for(var j=0;j<g.length;j++){
+						if(g[j].string==woorden[i].string){
+							nieuw=false;
+							g[j].voegToe(woorden[i]);
+							break;
+						}
+					}
+					if(nieuw){
+						g.push(woordGroep(woorden[i]));
+					}
+				}
+				callback();
+			},
+			function(callback){
+				(function(klaar){
+					//verberg de kleine groepen en 'groepeer' de grotere
+					for(var i=0;i<g.length;i++){
+						if(g[i].length()<=3){
+							g[i].verberg(tellendeCallback(g[i].length(),klaar));
+						}else{
+							g[i].groepeer(tellendeCallback(g[i].length()-1,klaar));
+						}
+					}
+				})(tellendeCallback(g.length, function(){
+					//hou als 'woorden' alleen de 'groot geworden' woorden over
+					woorden=[];
+					for(var i=0;i<g.length;i++){
+						if(g[i].rondWoord()){woorden.push(g[i].rondWoord());}
+					}
+					woorden.sort(function(a,b){
+						return b.groep().length()-a.groep().length();
+					});
+					console.log("grootste: "+woorden[0].groep().length()+", kleinste: "+woorden[woorden.length-1].groep().length());
+					console.log(woorden[0]);
+					var rechthoeken=rechthoekGroep($(window).width(),$(window).height());
+					for(var i=0;i<woorden.length;i++){
+						woorden[i].setDoel(rechthoeken.voegToe(woorden[i].width(), woorden[i].height()));
+					}
+					for(var i=0;i<woorden.length;i++){
+						woorden[i].gaNaarDoel();
+						woorden[i].setOnClick((function(index){
+							return function(){
+								for(var i=0;i<woorden.length;i++){
+									if(i==index){woorden[i].showContext();}else{woorden[i].hideContext();}
+								}
+							};
+						})(i));
+					}
+					makeNode('<div id="1" style="position:absolute;left:20px;bottom:20px"><input id="2" type="button" value="'+Uitsluiten(option).shuffleTekst+'" /></div>',
+						function(div, button){
+							body.appendChild(div);
+							button.onclick=function(){
+								var rechthoeken=rechthoekGroep($(window).width(),$(window).height());
+								for(var i=0;i<woorden.length;i++){
+									woorden[i].setDoel(rechthoeken.voegToe(woorden[i].width(), woorden[i].height()));
+								}
+								for(var i=0;i<woorden.length;i++){
+									woorden[i].gaNaarDoel();
+								}
+							};
+						})
+					
+				}, 200));
+			}
+		])();
+	};
+	var knop=(function(parent){
+		var node1=document.createElement('div');
+		var getOption;
+		node1.setAttribute('style', 'z-index:900;position:absolute;bottom:0px;right:0px;width:100%;height:10%');
+		node1.appendChild((function(rows){
+			var node=document.createElement('table');
+			node.setAttribute('style','width:100%;height:100%');
+			for(var i=0;i<rows.length;i++){
+				node.appendChild((function(nodes){
+					var node=document.createElement('tr');
+					for(var i=0;i<nodes.length;i++){
+						node.appendChild((function(thing){
+							var node=document.createElement('td');
+							node.appendChild(thing);
+							return node;
+						})(nodes[i]));
+					}
+					return node;
+				})(rows[i]));
+			}
+			return node;
+		})([[
+			(function(){
+				var node=document.createElement('input');
+				node.setAttribute('type','button');
+				//node.setAttribute('value', Uitsluiten("NL").doeIetsTekst);
+				node.onclick=function(){if(!invoer.value()){return;}console.log(getOption());parent.removeChild(node1);doeIets2(getOption());}
+				setKnopTekst=function(t){node.setAttribute('value',t);};
+				return node;
+			})(),
+			(function(labels){
+				var node=document.createElement('select');
+				node.onchange=function(){setKnopTekst(Uitsluiten(getOption()).doeIetsTekst);};
+				for(var i=0;i<labels.length;i++){
+					node.appendChild((function(option){
+						var node=document.createElement('option');
+						node.setAttribute('value',option);
+						node.appendChild(document.createTextNode(option));
+						return node;
+					})(labels[i]))
+				}
+				getOption=function(){return node.value;};
+				setKnopTekst(Uitsluiten(getOption()).doeIetsTekst);
+				return node;
+			})(Uitsluiten.labels())
+		]]));
+		parent.appendChild(node1);
+	})(body);
+})(document, document.body);
+</script>
+</html>
